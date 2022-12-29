@@ -1,0 +1,65 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+  labels:
+    app: backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: backend
+  template:
+    metadata:
+      labels:
+        app: backend
+    spec:
+      containers:
+      - name: backend
+        image: backend:starter
+        ports:
+        - containerPort: 9000
+        env:
+        - name: REDIS_URL
+          value: redis://redis:6379
+        - name: POSTGRES_URL
+          value: postgres://postgres:postgres@postgres:5432/medusa
+        - name: NODE_ENV
+          value: development
+        - name: JWT_SECRET
+          value: something
+        - name: COOKIE_SECRET
+          value: something
+        volumeMounts:
+        - mountPath: /app/medusa
+          name: backend-claim0
+        - mountPath: /app/medusa/node_modules
+          name: node-modules
+      restartPolicy: Always
+      volumes:
+      - name: node-modules
+      - name: backend-claim0
+      initContainers:
+      - name: init-postgres
+        image: busybox:1.28
+        command: ['sh', '-c', "until nslookup postgres.$(cat /var/run/secrets/kubernetes.io/serviceaccount/namespace).svc.cluster.local; do echo waiting for postgres; sleep 2; done"]
+      - name: init-redis
+        image: busybox:1.28
+        command: ['sh', '-c', "until nslookup redis.$(cat /var/run/secrets/kubernetes.io/serviceaccount/namespace).svc.cluster.local; do echo waiting for redis; sleep 2; done"]
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend
+  labels:
+    app: backend
+spec:
+  selector:
+    app: backend
+  ports:
+  - protocol: TCP
+    port: 9000
+    targetPort: 9000
+    nodePort: 30000
+  type: NodePort
